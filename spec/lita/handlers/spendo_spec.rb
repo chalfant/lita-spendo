@@ -25,11 +25,11 @@ describe Lita::Handlers::Spendo, lita_handler: true do
     end
 
     it 'shows the account' do
-      expect(replies.first).to include("<br>Account: foo")
+      expect(replies.first).to include("Account: foo")
     end
 
     it 'shows the url' do
-      expect(replies.first).to include("http://foo.com/3.jpg")
+      expect(replies).to include("http://foo.com/3.jpg")
     end
 
   end

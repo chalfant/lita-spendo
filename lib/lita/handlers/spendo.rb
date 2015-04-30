@@ -43,23 +43,23 @@ module Lita
         alert_level      = data['AlertLevel'].to_i
         categorized_fees = data['FeesByCategory']
 
-        message = "@all The current fees alert threshold has been reached.<br>"
-        message << "<br>Account: #{account}"
-        message << "<br>Current fees: $#{current_fees}"
-        message << "<br>Expected monthly fees: $#{expected_fees}" # TODO
-        message << "<br>Fee level is at #{alert_level * 25}% of expected"
-        message << "<br><br> Fee Category Breakdown<br><br>"
+        message = "@all The current fees alert threshold has been reached.\n"
+        message << "\nAccount: #{account}"
+        message << "\nCurrent fees: $#{current_fees}"
+        message << "\nExpected monthly fees: $#{expected_fees}" # TODO
+        message << "\nFee level is at #{alert_level * 25}% of expected"
+        message << "\n\n Fee Category Breakdown\n\n"
 
-        message << "<table>"
         categorized_fees.each_pair do |k,v|
           value = v.to_f
-          message << "<tr><td>#{k}</td><td align=\"right\"><pre>$#{sprintf('%8.2f', value.round(2))}</pre></td></tr>"
+          next if value == 0.0
+          message << "#{k.ljust(20)}: $#{sprintf('%8.2f', value.round(2))}\n"
         end
-        message << "</table>"
 
-        message << config.base_image_url + "/#{alert_level}.jpg"
+        url = config.base_image_url + "/#{alert_level}.jpg"
 
         response.reply message
+        response.reply url
       end
 
       attr_writer :billing_history
