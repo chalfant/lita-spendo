@@ -5,7 +5,7 @@ Gem::Specification.new do |spec|
   spec.email         = ["cchalfant@leafsoftwaresolutions.com"]
   spec.description   = "Lita handler for displaying AWS billing"
   spec.summary       = "Lita handler for displaying AWS billing"
-  spec.homepage      = "TODO: Add a homepage"
+  spec.homepage      = "https://github.com/chalfant/lita-spendo"
   spec.license       = "MIT"
   spec.metadata      = { "lita_plugin_type" => "handler" }
 
