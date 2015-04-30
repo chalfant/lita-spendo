@@ -43,7 +43,7 @@ module Lita
         alert_level      = data['AlertLevel'].to_i
         categorized_fees = data['FeesByCategory']
 
-        message = "@all The current fees alert threshold has been reached.\n"
+        message = "The current fees alert threshold has been reached.\n"
         message << "\nAccount: #{account}"
         message << "\nCurrent fees: $#{current_fees}"
         message << "\nExpected monthly fees: $#{expected_fees}" # TODO
