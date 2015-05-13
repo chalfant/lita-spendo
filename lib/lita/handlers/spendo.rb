@@ -29,12 +29,33 @@ module Lita
       config :aws_account_id, type: String
       config :dynamodb_table, type: String, default: 'BillingHistory'
       config :base_image_url, type: String
+      config :hipchat_room, type: String
 
       route(/^spendo$/, :show, command: true, help: {
         "spendo" => "show current billing level"
       })
 
       def show(response)
+        message, url = create_message
+
+        response.reply message
+        response.reply url
+      end
+
+      attr_writer :billing_history
+
+      def billing_history
+        if @billing_history.nil?
+          params = {
+            aws_account_id: config.aws_account_id,
+            dynamodb_table: config.dynamodb_table
+          }
+          @billing_history = BillingHistory.new(params)
+        end
+        @billing_history
+      end
+
+      def create_message
         data = billing_history.latest
 
         account          = data['Account']
@@ -58,21 +79,7 @@ module Lita
 
         url = config.base_image_url + "/#{alert_level}.jpg"
 
-        response.reply message
-        response.reply url
-      end
-
-      attr_writer :billing_history
-
-      def billing_history
-        if @billing_history.nil?
-          params = {
-            aws_account_id: config.aws_account_id,
-            dynamodb_table: config.dynamodb_table
-          }
-          @billing_history = BillingHistory.new(params)
-        end
-        @billing_history
+        return [message, url]
       end
     end
 
