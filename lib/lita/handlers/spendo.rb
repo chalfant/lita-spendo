@@ -7,12 +7,16 @@ module Lita
       attr_accessor :account, :table_name
 
       def initialize(params={})
+        @aws_access_key_id     = params[:aws_access_key_id]
+        @aws_secret_access_key = params[:aws_secret_access_key]
+        @aws_region = params[:aws_region]
         @account    = params[:aws_account_id]
         @table_name = params[:dynamodb_table]
       end
 
       def latest
-        ddb = Aws::DynamoDB::Resource.new()
+        credentials = Aws::Credentials.new(@aws_access_key_id, @aws_secret_access_key)
+        ddb = Aws::DynamoDB::Resource.new(region: @aws_region, credentials: credentials)
         table = ddb.table(table_name)
         opts = {
           key_condition_expression: 'Account = :account',
@@ -26,69 +30,89 @@ module Lita
     end
 
     class Spendo < Handler
-
       LAST_RECORD_KEY = 'last_record'
 
-      config :aws_account_id, type: String
-      config :dynamodb_table, type: String, default: 'BillingHistory'
-      config :base_image_url, type: String
-      config :room,           type: String
+      config :base_image_url,     type: String
       config :time_between_polls, type: Integer, default: 60*60
 
-      route(/^spendo$/, :show, command: true, help: {
-        "spendo" => "show current billing level"
+      # array of hashes, each hash describing a different
+      # account to monitor.
+      # config.accounts = [
+      #   {
+      #     :aws_account_id = 'foo',
+      #     :dynamodb_table = 'BillingHistory',
+      #     :room = 'shell',
+      #     :aws_access_key_id = 'foo',
+      #     :aws_secret_access_key = 'foo',
+      #     :nickname = 'foo'
+      #   }
+      # ]
+      config :accounts,       type: Array
+
+      route(/^spendo\s+(\S+)$/, :show, command: true, help: {
+        "spendo account_name" => "show current billing level for account_name"
       })
 
-      on(:connected) do |payload|
-        if config.room
-          # join the alert room
-          robot.join config.room
+      on(:connected) do
+        config.accounts.each do |account|
+          setup account
+        end
+      end
+
+      def setup(account)
+        if account[:room]
+          robot.join account[:room]
         end
 
-        # set up a timer to poll DynamoDB
         every(config.time_between_polls) do |timer|
-          check_for_alerts
+          check_for_alerts account
         end
       end
 
       def show(response)
-        message, url = create_message
+        account_nick = response.match_data[1]
+        account      = lookup_account account_nick
+        message, url = create_message account
 
         response.reply message
         response.reply url
       end
 
-      attr_writer :billing_history
+      def create_client(account)
+        params = {
+          aws_account_id:        account[:aws_account_id],
+          aws_region:            account[:aws_region],
+          dynamodb_table:        account[:dynamodb_table],
+          aws_access_key_id:     account[:aws_access_key_id],
+          aws_secret_access_key: account[:aws_secret_access_key]
+        }
 
-      def billing_history
-        if @billing_history.nil?
-          params = {
-            aws_account_id: config.aws_account_id,
-            dynamodb_table: config.dynamodb_table
-          }
-          @billing_history = BillingHistory.new(params)
-        end
-        @billing_history
+        BillingHistory.new(params)
       end
 
-      def create_message
-        data = billing_history.latest
+      def lookup_account(nickname)
+        config.accounts.select {|a| a[:nickname] == nickname }.first
+      end
 
-        account          = data['Account']
+      def create_message(account)
+        client = create_client account
+        data   = client.latest
+
+        account_id       = data['Account']
         current_fees     = data['TotalFees'].to_f
         expected_fees    = data['ExpectedFees'].to_f
         alert_level      = data['AlertLevel'].to_i
         categorized_fees = data['FeesByCategory']
 
         message = "The current fees alert threshold has been reached.\n"
-        message << "\nAccount: #{account}"
+        message << "\nAccount: #{account[:nickname]} #{account_id}"
         message << "\nCurrent fees: $#{current_fees}"
         message << "\nExpected monthly fees: $#{expected_fees}" # TODO
         message << "\nFee level is at #{alert_level * 25}% of expected"
         message << "\n\n Fee Category Breakdown\n\n"
 
-        categorized_fees.each_pair do |k,v|
-          value = v.to_f
+        categorized_fees.keys.sort.each do |k|
+          value = categorized_fees[k].to_f
           next if value == 0.0
           message << "#{k.ljust(20)}: $#{sprintf('%8.2f', value.round(2))}\n"
         end
@@ -98,16 +122,22 @@ module Lita
         return [message, url]
       end
 
+      def account_key(account)
+        account[:aws_account_id] + '_' + LAST_RECORD_KEY
+      end
+
       # write current data to redis
       # BigDecimals get saved as strings which fail to
       # deserialize as integers (but do deserialize as floats)
-      def save_billing_data(data)
-        redis.set LAST_RECORD_KEY, data.to_json
+      def save_billing_data(account, data)
+        key = account_key account
+        redis.set key, data.to_json
       end
 
       # read previous data from redis
-      def load_billing_data
-        data = redis.get LAST_RECORD_KEY
+      def load_billing_data(account)
+        key = account_key account
+        data = redis.get key
         return nil if data.nil?
 
         JSON.parse(data)
@@ -117,20 +147,21 @@ module Lita
         previous['AlertLevel'].to_f != current['AlertLevel'].to_f
       end
 
-      def check_for_alerts
+      def check_for_alerts(account)
         log.debug "checking for alerts"
-        current_data = billing_history.latest
-        last_data    = load_billing_data
+        client       = create_client account
+        current_data = client.latest
+        last_data    = load_billing_data(account)
 
         if last_data && alert_level_changed?(last_data, current_data)
-          message, url = create_message
-          target = Source.new(room: config.room)
+          message, url = create_message account
+          target = Source.new(room: account[:room])
           robot.send_messages(target, message, url)
         else
           log.debug "alert level unchanged"
         end
 
-        save_billing_data current_data
+        save_billing_data account, current_data
       end
     end
 
