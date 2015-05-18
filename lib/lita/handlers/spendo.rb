@@ -1,4 +1,5 @@
 require 'aws-sdk'
+require 'json'
 
 module Lita
   module Handlers
@@ -26,14 +27,29 @@ module Lita
 
     class Spendo < Handler
 
+      LAST_RECORD_KEY = 'last_record'
+
       config :aws_account_id, type: String
       config :dynamodb_table, type: String, default: 'BillingHistory'
       config :base_image_url, type: String
-      config :hipchat_room, type: String
+      config :room,           type: String
+      config :time_between_polls, type: Integer, default: 60*60
 
       route(/^spendo$/, :show, command: true, help: {
         "spendo" => "show current billing level"
       })
+
+      on(:connected) do |payload|
+        if config.room
+          # join the alert room
+          robot.join config.room
+        end
+
+        # set up a timer to poll DynamoDB
+        every(config.time_between_polls) do |timer|
+          check_for_alerts
+        end
+      end
 
       def show(response)
         message, url = create_message
@@ -80,6 +96,41 @@ module Lita
         url = config.base_image_url + "/#{alert_level}.jpg"
 
         return [message, url]
+      end
+
+      # write current data to redis
+      # BigDecimals get saved as strings which fail to
+      # deserialize as integers (but do deserialize as floats)
+      def save_billing_data(data)
+        redis.set LAST_RECORD_KEY, data.to_json
+      end
+
+      # read previous data from redis
+      def load_billing_data
+        data = redis.get LAST_RECORD_KEY
+        return nil if data.nil?
+
+        JSON.parse(data)
+      end
+
+      def alert_level_changed?(previous, current)
+        previous['AlertLevel'].to_f != current['AlertLevel'].to_f
+      end
+
+      def check_for_alerts
+        log.debug "checking for alerts"
+        current_data = billing_history.latest
+        last_data    = load_billing_data
+
+        if last_data && alert_level_changed?(last_data, current_data)
+          message, url = create_message
+          target = Source.new(room: config.room)
+          robot.send_messages(target, message, url)
+        else
+          log.debug "alert level unchanged"
+        end
+
+        save_billing_data current_data
       end
     end
 

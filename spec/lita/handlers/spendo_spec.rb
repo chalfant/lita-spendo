@@ -31,6 +31,19 @@ describe Lita::Handlers::Spendo, lita_handler: true do
     it 'shows the url' do
       expect(replies).to include("http://foo.com/3.jpg")
     end
+  end
 
+  describe '#alert_level_changed?' do
+    it 'is true if the levels are different' do
+      prev = {'AlertLevel' => "1"}
+      curr = {'AlertLevel' => "2"}
+      expect(subject.alert_level_changed?(prev, curr)).to be_truthy
+    end
+
+    it 'is false if the levels are same' do
+      prev = {'AlertLevel' => "1"}
+      curr = {'AlertLevel' => "1"}
+      expect(subject.alert_level_changed?(prev, curr)).to be_falsey
+    end
   end
 end
