@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name          = "lita-spendo"
-  spec.version       = "0.4.0"
+  spec.version       = "0.4.1"
   spec.authors       = ["Chris Chalfant"]
   spec.email         = ["cchalfant@leafsoftwaresolutions.com"]
   spec.description   = "Lita handler for displaying AWS billing"

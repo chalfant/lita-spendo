@@ -99,7 +99,7 @@ module Lita
         categorized_fees = data['FeesByCategory']
 
         message = "/code The current fees alert threshold has been reached.\n"
-        message << "\nAccount: #{account[:nickname]} #{account_id}"
+        message << "\nAccount: #{account['nickname']} #{account_id}"
         message << "\nCurrent fees: $#{current_fees}"
         message << "\nExpected monthly fees: $#{expected_fees}" # TODO
         message << "\nFee level is at #{alert_level * 25}% of expected"
