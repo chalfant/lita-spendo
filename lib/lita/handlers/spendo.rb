@@ -7,11 +7,11 @@ module Lita
       attr_accessor :account, :table_name
 
       def initialize(params={})
-        @aws_access_key_id     = params[:aws_access_key_id]
-        @aws_secret_access_key = params[:aws_secret_access_key]
-        @aws_region = params[:aws_region]
-        @account    = params[:aws_account_id]
-        @table_name = params[:dynamodb_table]
+        @aws_access_key_id     = params['aws_access_key_id']
+        @aws_secret_access_key = params['aws_secret_access_key']
+        @aws_region            = params['aws_region']
+        @account               = params['aws_account_id']
+        @table_name            = params['dynamodb_table']
       end
 
       def latest
@@ -39,12 +39,12 @@ module Lita
       # account to monitor.
       # config.accounts = [
       #   {
-      #     :aws_account_id = 'foo',
-      #     :dynamodb_table = 'BillingHistory',
-      #     :room = 'shell',
-      #     :aws_access_key_id = 'foo',
-      #     :aws_secret_access_key = 'foo',
-      #     :nickname = 'foo'
+      #     'aws_account_id'        => 'foo',
+      #     'dynamodb_table'        => 'BillingHistory',
+      #     'room'                  => 'shell',
+      #     'aws_access_key_id'     => 'foo',
+      #     'aws_secret_access_key' => 'foo',
+      #     'nickname'              => 'foo'
       #   }
       # ]
       config :accounts,       type: Array
@@ -60,8 +60,8 @@ module Lita
       end
 
       def setup(account)
-        if account[:room]
-          robot.join account[:room]
+        if account['room']
+          robot.join account['room']
         end
 
         every(config.time_between_polls) do |timer|
@@ -79,19 +79,13 @@ module Lita
       end
 
       def create_client(account)
-        params = {
-          aws_account_id:        account[:aws_account_id],
-          aws_region:            account[:aws_region],
-          dynamodb_table:        account[:dynamodb_table],
-          aws_access_key_id:     account[:aws_access_key_id],
-          aws_secret_access_key: account[:aws_secret_access_key]
-        }
+        params = account.dup
 
         BillingHistory.new(params)
       end
 
       def lookup_account(nickname)
-        config.accounts.select {|a| a[:nickname] == nickname }.first
+        config.accounts.select {|a| a['nickname'] == nickname }.first
       end
 
       def create_message(account)
@@ -104,7 +98,7 @@ module Lita
         alert_level      = data['AlertLevel'].to_i
         categorized_fees = data['FeesByCategory']
 
-        message = "The current fees alert threshold has been reached.\n"
+        message = "/code The current fees alert threshold has been reached.\n"
         message << "\nAccount: #{account[:nickname]} #{account_id}"
         message << "\nCurrent fees: $#{current_fees}"
         message << "\nExpected monthly fees: $#{expected_fees}" # TODO
@@ -112,9 +106,11 @@ module Lita
         message << "\n\n Fee Category Breakdown\n\n"
 
         categorized_fees.keys.sort.each do |k|
+          category = k.strip.ljust(20)
           value = categorized_fees[k].to_f
           next if value == 0.0
-          message << "#{k.ljust(20)}: $#{sprintf('%8.2f', value.round(2))}\n"
+          amount = sprintf('%8.2f', value.round(2))
+          message << "#{category}: $#{amount}\n"
         end
 
         url = config.base_image_url + "/#{alert_level}.jpg"
@@ -155,7 +151,7 @@ module Lita
 
         if last_data && alert_level_changed?(last_data, current_data)
           message, url = create_message account
-          target = Source.new(room: account[:room])
+          target = Source.new(room: account['room'])
           robot.send_messages(target, message, url)
         else
           log.debug "alert level unchanged"

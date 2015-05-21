@@ -21,13 +21,13 @@ Spendo relies on the aws-sdk gem so it requires an AWS account. The account requ
 
 ``` ruby
 {
-  nickname:              'foo',
-  aws_account_id:        ENV['AWS_ACCOUNT_ID'],
-  aws_access_key_id:     ENV['AWS_ACCESS_KEY_ID'],
-  aws_secret_access_key: ENV['AWS_SECRET_ACCESS_KEY'],
-  aws_region:            'us-east-1',
-  room:                  'shell', # or room JID or whatever
-  dynamodb_table:        'BillingHistory'
+  'nickname'              => 'foo',
+  'aws_account_id'        => ENV['AWS_ACCOUNT_ID'],
+  'aws_access_key_id'     => ENV['AWS_ACCESS_KEY_ID'],
+  'aws_secret_access_key' => ENV['AWS_SECRET_ACCESS_KEY'],
+  'aws_region'            => 'us-east-1',
+  'room'                  => 'shell', # or room JID or whatever
+  'dynamodb_table'        => 'BillingHistory'
 }
 ```
 
